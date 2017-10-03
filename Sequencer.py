@@ -2,23 +2,21 @@ import os
 import sys
 import re
 import string
+import subprocess
 
-try:
-    from Bio.WWW import NCBI
-except ImportError:
-    pass
-else:
-    from Bio.Blast import NCBIWWW
-    from Bio import Fasta
-    from Bio.Clustalw import MultipleAlignCL
-    import Bio.Clustalw
+#from Bio.WWW import NCBI
+from Bio.Blast import NCBIWWW
+from Bio import AlignIO
+from Bio.Align.Applications import ClustalwCommandline
 
 import global_functions
 
 def Sequence_Through_Clustalw( sequence, system, chain=None):
     """ do the entire sequence """
     b_tag = system.get_filename_by_extension('.fst', chain)
+    print b_tag
     cwin_tag = system.get_filename_by_extension('.cin', chain)
+    print "cwin_tag %s"%(cwin_tag)
     dos_cwin_tag = global_functions.translate_filename_to_DOS_8_3_format(cwin_tag)
     cwout_tag = system.get_filename_by_extension('.clu', chain)
     dos_cwout_tag = global_functions.translate_filename_to_DOS_8_3_format(cwout_tag)
@@ -29,11 +27,12 @@ def Sequence_Through_Clustalw( sequence, system, chain=None):
     print "BLASTing %s\n"%(sequence)
     Blastp_( sequence, b_tag )
     print "BLAST Complete, Fetching Sequences\n"
-    Create_Clustalw_Input( sequence, b_tag, dos_cwin_tag, 'ON')
+    print sequence
+    Create_Clustalw_Input( sequence, b_tag, cwin_tag, 'ON')
     print "Fetch Complete, Clustalw Aligned Sequences\n"
-    Clustalw_Align( dos_cwin_tag, dos_cwout_tag )
+    Clustalw_Align( cwin_tag, cwout_tag )
     print "Matching Fasta headers to alignments\n"
-    Bridge_Fasta_Header_And_Aligned( dos_cwin_tag, dos_cwout_tag, dos_cwaligned_tag )
+    Bridge_Fasta_Header_And_Aligned( cwin_tag, cwout_tag, cwaligned_tag )
     return cwaligned_tag
 
 def Resequence_From_FST( sequence, system, chain=None):
@@ -76,7 +75,7 @@ def Blastp_( fasta_sequence, out_file = 'Blastp.txt', format = 'Text'):
     """ Purpose: Retrieve BLAST(blastp) information of 'fasta_sequence' and store
         it to a file
     """
-    b_result = NCBIWWW.blast( 'blastp', 'nr', fasta_sequence, format_type = format )
+    b_result = NCBIWWW.qblast( 'blastp', 'nr', fasta_sequence, format_type = format )
     save_file = open( out_file, 'w' )
     save_file.write( b_result.read() )
     save_file.close()
@@ -103,6 +102,7 @@ def Create_Clustalw_Input( sequence, blast_file = 'Blastp.txt', out_file = 'CWIn
         if not title in titles_done or repeat_filter != 'ON':    #this filters out repeated titles
             # I wanted to reduce the number of repeating sequences
             titles_done.append( title )
+            print sequence_header
             gi, pid, gb = sequence_header.split( "|", 2 )  #get gi
             print 'appending %s to %s add %s'%(pid, out_file, gb)
             Append_Unique_Protein_Fasta( pid, out_file, 'Text' )
@@ -138,22 +138,19 @@ def Clustalw_Align(input_file = 'CWIn.txt', output_file = 'CWIn.aln', output_tre
     """ purpose: To find the best multiple alignment given a file of FASTA sequences
         create the tree(.dnd) and the alignments as FASTA sequences(.aln)
     """
-    cline = MultipleAlignCL( input_file )
-    #creates command line for writing to output_file, in the order sequences were input
-    #as separate FASTA-like sequences
-    cline.set_output( output_file, output_order='INPUT', output_type = 'PIR' )
-    cline.set_new_guide_tree( output_tree_file )
-    clear_file = open( output_file, 'w' )   
-    clear_file.close()
-    #Clustalw module checks for existence of output file before writing, need previous two lines
-    Bio.Clustalw.do_alignment( cline )
+    cline = ClustalwCommandline("clustalw", infile=input_file)
+    child = subprocess.call(str(cline), stdout=subprocess.PIPE, shell=(sys.platform!="win32"))
+    align = AlignIO.read(child.stdout, "fasta")
+    AlignIO.write([align], open(output_file, 'w+'), 'phylip')
 
-def Fasta_Iter_From_File( the_file ):
-    """ http://www.ncbi.nlm.nih.gov/entrez/query/static/linking.html
-        code base on #page 17 and 18 of the BioPython tutorial
-    """
-    file_for_blast = open( the_file,'r' )
-    return Fasta.Iterator( file_for_blast )
+    
+    #cline.set_output( output_file, output_order='INPUT', output_type = 'PIR' )
+    #cline.set_new_guide_tree( output_tree_file )
+    #clear_file = open( output_file, 'w' )   
+    #clear_file.close()
+    ##Clustalw module checks for existence of output file before writing, need previous two lines
+    #do_alignment( cline )
+    
 
 def Next_Seq(iter):
     return iter.next()

@@ -81,6 +81,7 @@ class TreeSystem(Frame):
         self.sequences = []
         strg = ""
         # look for .clu then .aln. if neither, make a .clu
+        print "hello world %s"%(system.get_filename_by_extension("fst", chain))
         if os.path.exists(system.get_filename_by_extension("aln", chain)) and os.path.getsize(system.get_filename_by_extension("aln", chain)):
             print 'opening alignment from a .aln file'
             aln_file = system.get_filename_by_extension("aln", chain)
