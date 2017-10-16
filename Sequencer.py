@@ -7,7 +7,8 @@ import subprocess
 #from Bio.WWW import NCBI
 from Bio.Blast import NCBIWWW
 from Bio import AlignIO
-from Bio.Align.Applications import ClustalwCommandline
+from Bio.Align.Applications import ClustalOmegaCommandline
+from Bio import Entrez
 
 import global_functions
 
@@ -30,6 +31,7 @@ def Sequence_Through_Clustalw( sequence, system, chain=None):
     print sequence
     Create_Clustalw_Input( sequence, b_tag, cwin_tag, 'ON')
     print "Fetch Complete, Clustalw Aligned Sequences\n"
+    print "input1 %s out %s"%(cwin_tag, cwout_tag)
     Clustalw_Align( cwin_tag, cwout_tag )
     print "Matching Fasta headers to alignments\n"
     Bridge_Fasta_Header_And_Aligned( cwin_tag, cwout_tag, cwaligned_tag )
@@ -49,11 +51,12 @@ def Resequence_From_FST( sequence, system, chain=None):
     #print "BLASTing %s\n"%(sequence)
     #Blastp_( sequence, b_tag )
     print "BLAST Complete, Fetching Sequences\n"
-    Create_Clustalw_Input( sequence, b_tag, dos_cwin_tag, 'ON')
+    Create_Clustalw_Input( sequence, b_tag, cwin_tag, 'ON')
     print "aligning with clustalW\n"
-    Clustalw_Align( dos_cwin_tag, dos_cwout_tag )
+    print "input2 %s out %s"%(cwin_tag, cwout_tag)
+    Clustalw_Align( cwin_tag, cwout_tag )
     print "matching fasta headers to alignments\n"
-    Bridge_Fasta_Header_And_Aligned( dos_cwin_tag, dos_cwout_tag, dos_cwaligned_tag )
+    Bridge_Fasta_Header_And_Aligned( cwin_tag, cwout_tag, cwaligned_tag )
     return cwaligned_tag
 
 def Resequence_From_CIN(sequence, system, chain=None):
@@ -66,7 +69,8 @@ def Resequence_From_CIN(sequence, system, chain=None):
     #the cwprot_tag can only differ from the tag given to Clustalw_Protein by its extension
     print 'sequencer from CIN'
     print 'aligning with clustalW'
-    Clustalw_Align( dos_cwin_tag, dos_cwout_tag )
+    print "input1 %s out %s"%(cwin_tag, cwout_tag)
+    Clustalw_Align( cwin_tag, cwout_tag )
     print "matching fasta headers to alignments\n"
     Bridge_Fasta_Header_And_Aligned( dos_cwin_tag, dos_cwout_tag, dos_cwaligned_tag )
     return cwaligned_tag
@@ -86,6 +90,7 @@ def Create_Clustalw_Input( sequence, blast_file = 'Blastp.txt', out_file = 'CWIn
         returns a list of the titles done in the order they were appended
     """
     # first advance the reader to the beginning of the accession # (gi...) headers
+    print "in create input with %s %s %s %s"%(sequence, blast_file, out_file, repeat_filter)
     results_file = Advance_Reader( blast_file )
     if( results_file == 0 ):
         return
@@ -103,7 +108,13 @@ def Create_Clustalw_Input( sequence, blast_file = 'Blastp.txt', out_file = 'CWIn
             # I wanted to reduce the number of repeating sequences
             titles_done.append( title )
             print sequence_header
-            gi, pid, gb = sequence_header.split( "|", 2 )  #get gi
+            if len(sequence_header.split("|")) >= 3:
+                gi, pid, gb = sequence_header.split( "|", 2 )  #get gi
+            elif len(sequence_header.split('\t')) >= 3:
+                gi, pid, gb = sequence_header.split( "\t", 2 )
+            else:
+                headerlist = sequence_header.split()
+                pid, gi, gb = headerlist[0], headerlist[1], headerlist[2]
             print 'appending %s to %s add %s'%(pid, out_file, gb)
             Append_Unique_Protein_Fasta( pid, out_file, 'Text' )
         total_count = total_count+1
@@ -138,10 +149,12 @@ def Clustalw_Align(input_file = 'CWIn.txt', output_file = 'CWIn.aln', output_tre
     """ purpose: To find the best multiple alignment given a file of FASTA sequences
         create the tree(.dnd) and the alignments as FASTA sequences(.aln)
     """
-    cline = ClustalwCommandline("clustalw", infile=input_file)
-    child = subprocess.call(str(cline), stdout=subprocess.PIPE, shell=(sys.platform!="win32"))
-    align = AlignIO.read(child.stdout, "fasta")
-    AlignIO.write([align], open(output_file, 'w+'), 'phylip')
+    #cline = ClustalOmegaCommandline("clustalw", infile=input_file)
+    cline = ClustalOmegaCommandline(infile=input_file, outfile=output_file, verbose=True, auto=True, force=True)
+    cline()
+    #child = subprocess.call(str(cline), stdout=subprocess.PIPE, shell=(sys.platform!="win32"))
+    #align = AlignIO.read(child.stdout, "fasta")
+    #AlignIO.write([align], open(output_file, 'w+'), 'phylip')
 
     
     #cline.set_output( output_file, output_order='INPUT', output_type = 'PIR' )
@@ -155,13 +168,16 @@ def Clustalw_Align(input_file = 'CWIn.txt', output_file = 'CWIn.aln', output_tre
 def Next_Seq(iter):
     return iter.next()
 
-def Append_Unique_Protein_Fasta( gi, out_file = 'AUPF.txt', format = 'Text' ):
+def Append_Unique_Protein_Fasta( gi, out_file = 'AUPF.txt', outformat = 'Text' ):
     """ Purpose: Using 'gi' as a unique index to a protein, append to a
         file FASTA information from NCBI Entrez
         Text is the default to make file processing faster
         page 17 and 18 of the BioPython tutorial
     """
-    result_handle = NCBI.query( format, 'Protein', doptcmdl = 'FASTA', uid = gi )
+    print "querying %s %s %s"%(gi, out_file, outformat)
+    result_handle = Entrez.efetch(db="protein", id=gi, retmode="text", rettype="fasta")
+    #result_handle = NCBIWWW.query( outformat, 'Protein', doptcmdl = 'FASTA', uid = gi )
+    #result_handle = "%s\n"%(gi)
     result_file = open( out_file, 'a' )
     result_file.write( result_handle.read() )
     result_file.close()
@@ -195,7 +211,7 @@ def Get_Unique_Protein_Fasta( gi, out_file = 'UPF.txt', format = 'Text' ):
         Text is the default to make file processing faster
         page 17 and 18 of the BioPython tutorial
     """
-    result_handle = NCBI.query( format, 'Protein', doptcmdl = 'FASTA', uid = gi )
+    result_handle = NCBIWWW.query( format, 'Protein', doptcmdl = 'FASTA', uid = gi )
     result_file = open( out_file, 'w' )
     result_file.write( result_handle.read() )
     result_file.close()
