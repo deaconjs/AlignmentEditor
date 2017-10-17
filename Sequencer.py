@@ -150,7 +150,8 @@ def Clustalw_Align(input_file = 'CWIn.txt', output_file = 'CWIn.aln', output_tre
         create the tree(.dnd) and the alignments as FASTA sequences(.aln)
     """
     #cline = ClustalOmegaCommandline("clustalw", infile=input_file)
-    cline = ClustalOmegaCommandline(infile=input_file, outfile=output_file, verbose=True, auto=True, force=True)
+    distout = "%sdst"%(output_file[:-3])
+    cline = ClustalOmegaCommandline(infile=input_file, outfile=output_file, verbose=True, auto=True, force=True, distmat_out=distout, distmat_full=True)
     cline()
     #child = subprocess.call(str(cline), stdout=subprocess.PIPE, shell=(sys.platform!="win32"))
     #align = AlignIO.read(child.stdout, "fasta")
@@ -174,10 +175,7 @@ def Append_Unique_Protein_Fasta( gi, out_file = 'AUPF.txt', outformat = 'Text' )
         Text is the default to make file processing faster
         page 17 and 18 of the BioPython tutorial
     """
-    print "querying %s %s %s"%(gi, out_file, outformat)
     result_handle = Entrez.efetch(db="protein", id=gi, retmode="text", rettype="fasta")
-    #result_handle = NCBIWWW.query( outformat, 'Protein', doptcmdl = 'FASTA', uid = gi )
-    #result_handle = "%s\n"%(gi)
     result_file = open( out_file, 'a' )
     result_file.write( result_handle.read() )
     result_file.close()
@@ -211,7 +209,7 @@ def Get_Unique_Protein_Fasta( gi, out_file = 'UPF.txt', format = 'Text' ):
         Text is the default to make file processing faster
         page 17 and 18 of the BioPython tutorial
     """
-    result_handle = NCBIWWW.query( format, 'Protein', doptcmdl = 'FASTA', uid = gi )
+    result_handle = Entrez.efetch(db="protein", id=gi, retmode="text", rettype="fasta")
     result_file = open( out_file, 'w' )
     result_file.write( result_handle.read() )
     result_file.close()
@@ -221,6 +219,7 @@ def Clustalw_Protein( infile = 'CWin.txt'):
     sys.path.append(os.getcwd())
     infile = global_functions.translate_filename_to_DOS_8_3_format(infile)
     command = "clustalw.exe %s -tree -outputtree=dist"%(infile)
+    #cline = ClustalOmegaCommandline(infile=input_file, outfile=output_file, verbose=True, auto=True, force=True)
     os.system(command)
 
 def Bridge_Fasta_Header_And_Aligned(fasta_file, aligned_file, output_file):

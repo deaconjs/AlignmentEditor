@@ -3,6 +3,7 @@ import TreeParse
 def UPGMA( filename, fetch_list=None ):
     """ Create a full UPGMA tree from a file."""
     counter = 0
+    print "upgma file name (%s)"%(filename)
     ids, matrix = Read_Matrix_File(filename)    #Read file
     if fetch_list != None:
         ids, matrix = Filter_By_Fetch_list(ids, matrix, fetch_list)

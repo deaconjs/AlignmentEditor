@@ -100,7 +100,7 @@ class TreeSystem(Frame):
                 print 'no preformed files located, initialize BLAST to ClustalW.'
                 seq = system.ProteinDict[chain].get_sequence()
                 aln_file = Sequencer.Sequence_Through_Clustalw(seq,system,chain)
-                
+        print "loading internal file B %s"%(aln_file)
         self.Load_File_Internal( aln_file )
 
         if view_mode in ['editor', 'viewer']:
@@ -120,17 +120,22 @@ class TreeSystem(Frame):
     def Get_Sequences(self):
         return self.sequences
 
-    def Load_File_Internal( self, file ):
+    def Load_File_Internal( self, tfile ):
         """Load file with error checking"""
-        self.aligned_file =  file.replace('/',os.sep)     #the file to find the protein distance matrix
+        self.aligned_file =  tfile.replace('/',os.sep)     #the file to find the protein distance matrix
         af = self.aligned_file
         index, slash = af.rfind('.'), af.rfind(os.sep)
         if( index == -1 or index < slash ):
             index = len( af )
         self.distance_file = af[0:index] + ".dst"
+        print "trying to open treesystem with aligned %s distance %s"%(self.aligned_file, self.distance_file)
+        if not os.path.isfile(self.aligned_file):
+            print "no aligned file %s found"%(self.aligned_file)
+
         try:
             print 'treesystem opening %s'%(self.aligned_file)
-            Sequencer.Clustalw_Protein(self.aligned_file)     #Create protein distance matrix
+            #Sequencer.Clustalw_Protein(self.aligned_file)     #Create protein distance matrix
+            print "sending %s off to UPGMA"%(self.distance_file)
             self.tree = UPGMA.UPGMA(self.distance_file)       #root tree is the base tree
         except IOError:
             print "File must be a FASTA formatted file with more than one sequence"
@@ -509,7 +514,7 @@ class TreeSystem(Frame):
         os.remove(self.system.get_filename_by_extension("aln", self.chain))
         os.remove(self.system.get_filename_by_extension("clu", self.chain))
         strg = Sequencer.Resequence_From_CIN(seq, self.system, self.chain)
-
+        print "loading file A %s"%(strg)
         self.Load_File_Internal( strg )
 
         self.display = GUI.TreeWindow(self, self.editor_view)           # Create a framework for the GUI
